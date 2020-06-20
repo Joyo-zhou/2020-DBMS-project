@@ -9,6 +9,9 @@
 typedef struct data_page {
     // fixed-size record design
     // uncompressed page format
+    pm_bucket buckets[DATA_PAGE_SLOT_NUM];
+    uint8_t  bitmap[DATA_PAGE_SLOT_NUM / 8];
 } data_page;
+
 
 #endif
