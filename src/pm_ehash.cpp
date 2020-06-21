@@ -868,6 +868,7 @@ void PmEHash::selfDestory() {
 	// 清空所有内存数据
 	// 解除所有内存映射
 }
+<<<<<<< HEAD
 
 void PmEHash::printCatalog()
 {
@@ -908,3 +909,5 @@ void PmEHash::printMap()
 			it.second.fileId, it.second.offset);
 	}
 }
+=======
+>>>>>>> 768a1fe4d6adb4d2e5d19eb693a35a5d5b1b3c04
