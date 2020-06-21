@@ -1,4 +1,4 @@
-#include"pm_ehash.h"
+#include"../include/pm_ehash.h"
 
 
 
@@ -32,32 +32,10 @@ PmEHash::PmEHash() {
     	// 目录不是pmem,所以直接调用pmem_msync()
 		pmem_msync(metadata, map_len);
 
-		// ehash_catalog c;
-		catalog.buckets_pm_address = new pm_address[metadata->catalog_size];
-		catalog.buckets_virtual_address = new pm_bucket *[metadata->catalog_size];
 
-		// invalid pm_adress = {0, 0};
-		memset(catalog.buckets_pm_address, 0, sizeof(pm_address) * metadata->catalog_size);
-		memset(catalog.buckets_virtual_address, 0, sizeof(pm_bucket *) * metadata->catalog_size);
 
-		void *pmemaddr;
+		const char *page_name = PM_EHASH_DIRECTORY "1";
 
-		printf("catalog_path = %s\n", catalog_path);
-
-		// 由于每次重启后buckets对应的虚拟地址都会改变,所以只存取catalog.buckets_pm_address
-		if ((pmemaddr = pmem_map_file(catalog_path, sizeof(pm_address) * metadata->catalog_size, PMEM_FILE_CREATE,
-			0777, &map_len, &is_pmem)) == NULL) {
-			perror("pmem_map_file");
-			exit(1);
-		}
-
-		// copy to mmap
-		memcpy(pmemaddr, catalog.buckets_pm_address, sizeof(ehash_catalog) * metadata->catalog_size / 2);
-
-		// flush to catalog_path
-		pmem_msync(pmemaddr, map_len);
-
-		const char *page_name = "1";
 
 		data_page *p;
 
@@ -85,6 +63,38 @@ PmEHash::PmEHash() {
 
 		pmem_msync(p, map_len);
 		// metadata的生存域是整个PmEhash,所以生成后不需要调用pmem_unmap()
+
+		// ehash_catalog c;
+		catalog.buckets_pm_address = new pm_address[metadata->catalog_size];
+		catalog.buckets_virtual_address = new pm_bucket *[metadata->catalog_size];
+
+		for (int i = 0; i < metadata->catalog_size; ++i)
+		{
+			catalog.buckets_virtual_address[i] = (pm_bucket *)getFreeSlot(catalog.buckets_pm_address[i]);
+			catalog.buckets_virtual_address[i]->local_depth = 4;
+		}	
+
+		// invalid pm_adress = {0, 0};
+		// memset(catalog.buckets_pm_address, 0, sizeof(pm_address) * metadata->catalog_size);
+		// memset(catalog.buckets_virtual_address, 0, sizeof(pm_bucket *) * metadata->catalog_size);
+
+		void *pmemaddr;
+
+		printf("catalog_path = %s\n", catalog_path);
+
+		// 由于每次重启后buckets对应的虚拟地址都会改变,所以只存取catalog.buckets_pm_address
+		if ((pmemaddr = pmem_map_file(catalog_path, sizeof(pm_address) * metadata->catalog_size, PMEM_FILE_CREATE,
+			0777, &map_len, &is_pmem)) == NULL) {
+			perror("pmem_map_file");
+			exit(1);
+		}
+
+		// copy to mmap
+		memcpy(pmemaddr, catalog.buckets_pm_address, sizeof(ehash_catalog) * metadata->catalog_size / 2);
+
+		// flush to catalog_path
+		pmem_msync(pmemaddr, map_len);
+
 	}
 	// 如果为NULL的话,则代表数据文件夹下有旧哈希的数据,调用recover()
 	else {
@@ -411,6 +421,8 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 
 	old_bucket = catalog.buckets_virtual_address[bucket_id];
 
+	printf("old_bucket_id = %ld\n", bucket_id);
+
 	// 从free_list拿一个桶空间
 	pm_address new_buckets_pm_address;
 	pm_bucket *new_bucket = (pm_bucket *)getFreeSlot(new_buckets_pm_address);
@@ -433,6 +445,8 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 	uint64_t new_index = bucket_id + (1 << new_bucket->local_depth-1);
 	catalog.buckets_virtual_address[new_index] = new_bucket;
 	catalog.buckets_pm_address[new_index] = new_buckets_pm_address;
+
+	printf("new_bucket id = %ld\n", new_index);
 
 	// 桶数据重新哈希
 	// 先把旧桶的bitmap全置零
@@ -627,6 +641,8 @@ void* PmEHash::getFreeSlot(pm_address& new_address) {
 
 	int bitmap = p->bitmap[0] + (p->bitmap[1] << 8);
 
+	// bucket->local_depth = 4;
+
 	printf("In getFreeSlot, before setbit, bitmap = %d\n", bitmap);
 
 	setbit(bitmap, index);
@@ -651,7 +667,7 @@ void PmEHash::allocNewPage() {
 	int is_pmem;
 
 	uint32_t it = metadata->max_file_id;
-	const char *page_name = to_string(it).c_str();
+	const char *page_name =  (((string)PM_EHASH_DIRECTORY) + to_string(it)).c_str();
 
 	// 申请新空间，开辟新文件"$max_file_id"
 	if ((pmemaddr = pmem_map_file(page_name, sizeof(data_page), PMEM_FILE_CREATE,
