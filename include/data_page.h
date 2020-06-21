@@ -13,5 +13,4 @@ typedef struct data_page {
     uint8_t  bitmap[DATA_PAGE_SLOT_NUM / 8];
 } data_page;
 
-
 #endif

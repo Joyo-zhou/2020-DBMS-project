@@ -4,13 +4,27 @@
 #include<cstdint>
 #include<queue>
 #include<map>
-#include"data_page.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <libpmem.h>
+#ifndef _WIN32
+#include <unistd.h>
+#else
+#include <io.h>
+#endif
+#include <string>
+#include <string.h>
+
 
 #define BUCKET_SLOT_NUM               15
 #define DEFAULT_CATALOG_SIZE      16
-#define META_NAME                                "pm_ehash_metadata";
-#define CATALOG_NAME                        "pm_ehash_catalog";
-#define PM_EHASH_DIRECTORY        "";        // add your own directory path to store the pm_ehash
+#define META_NAME                                "pm_ehash_metadata"
+#define CATALOG_NAME                        "pm_ehash_catalog"
+#define PM_EHASH_DIRECTORY        "data/"        // add your own directory path to store the pm_ehash
 
 #define BUCKET_SIZE 256
 
@@ -18,10 +32,12 @@ const char* meta_path = PM_EHASH_DIRECTORY META_NAME;
 const char* catalog_path = PM_EHASH_DIRECTORY CATALOG_NAME;
 
 #define setbit(x,y) x|=(1<<y) //将X的第Y位置1
-#define clrbit(x,y) x&=!(1<<y) //将X的第Y位清0
+#define clrbit(x,y) x&=~(1<<y) //将X的第Y位清0
 
 using std::queue;
 using std::map;
+using std::to_string;
+using std::string;
 
 /* 
 ---the physical address of data in NVM---
@@ -74,6 +90,7 @@ typedef struct ehash_metadata
     uint64_t global_depth;   // global depth of PmEHash
 } ehash_metadata;
 
+#include"data_page.h"
 
 class PmEHash
 {
@@ -117,6 +134,9 @@ public:
     int remove(uint64_t key);
     int update(kv kv_pair);
     int search(uint64_t key, uint64_t& return_val);
+
+    void printCatalog();
+    void printMap();
 
     void selfDestory();
 };
