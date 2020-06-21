@@ -18,7 +18,7 @@ const char* meta_path = PM_EHASH_DIRECTORY META_NAME;
 const char* catalog_path = PM_EHASH_DIRECTORY CATALOG_NAME;
 
 #define setbit(x,y) x|=(1<<y) //将X的第Y位置1
-#define clrbit(x,y) x&=!(1<<y) //将X的第Y位清0
+#define clrbit(x,y) x&=~(1<<y) //将X的第Y位清0
 
 using std::queue;
 using std::map;
