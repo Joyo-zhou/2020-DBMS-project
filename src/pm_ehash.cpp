@@ -209,6 +209,7 @@ int PmEHash::insert(kv new_kv_pair) {
  * @return: 0 = removing successfully, -1 = fail to remove(target data doesn't exist)
  */
 int PmEHash::remove(uint64_t key) {
+	printf("In remove.\n");
 	uint64_t value;
 
 	uint64_t index = getBucketIndex(key);
@@ -221,20 +222,25 @@ int PmEHash::remove(uint64_t key) {
 	pm_bucket* bucket = catalog.buckets_virtual_address[index];
 	
     // 找到桶中key对应的位置
-    int targetIndex = getKvPlace(bucket, kv_pair.key);
+    int targetIndex = getKvPlace(bucket, key);
 
     // 执行remove操作
     // remove(key, value) ==> bitmap(targetPlace) = 0;
-    if (targetIndex == -1)
-    	return -1;
-
     int bitmap = (bucket->bitmap[0]) + (bucket->bitmap[1] << 8); 
+
+    printf("its bitmap = %d\n", bitmap);
+    if (targetIndex == -1)
+    {
+    	printf("do not find targetIndex.\n");
+    	return -1;
+    }
+
 
     // 使用宏命令将bitmap的targetIndex位清零
     clrbit(bitmap, targetIndex);
 
     // 再copy到对应的bitmap所在的内存
-    memcpy(bucket->bitmap, bitmap, sizeof(uint8_t) * 2);
+    memcpy(bucket->bitmap, &bitmap, sizeof(uint8_t) * 2);
 
     // 说不定要调用pmem_msync()
 
@@ -250,6 +256,7 @@ int PmEHash::remove(uint64_t key) {
  * @return: 0 = update successfully, -1 = fail to update(target data doesn't exist)
  */
 int PmEHash::update(kv kv_pair) {
+	printf("Get in update\n");
 	uint64_t value;
 
 	uint64_t index = getBucketIndex(kv_pair.key);
@@ -261,6 +268,10 @@ int PmEHash::update(kv kv_pair) {
 	// 存在就找到key存放的index
 	pm_bucket* bucket = catalog.buckets_virtual_address[index];
 	int targetIndex = getKvPlace(bucket, kv_pair.key);
+
+	printf("key is in buckets_pm_address { %d, %d } in index %ld\n", vAddr2pmAddr[bucket].fileId,
+		vAddr2pmAddr[bucket].offset, index);
+
 
 	// 修改index所在的kv对应的value
 	bucket->slot[targetIndex].value = kv_pair.value;
@@ -346,6 +357,10 @@ pm_bucket* PmEHash::getFreeBucket(uint64_t key) {
 	if (isFull(bucket))
 		splitBucket(index);
 
+	// update bucket index
+	index = getBucketIndex(key);
+	bucket = catalog.buckets_virtual_address[index];	
+
 	// 返回桶指针
 	return bucket;
 }
@@ -394,6 +409,8 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 		printf("after extendCatalog.\n");
 	}
 
+	old_bucket = catalog.buckets_virtual_address[bucket_id];
+
 	// 从free_list拿一个桶空间
 	pm_address new_buckets_pm_address;
 	pm_bucket *new_bucket = (pm_bucket *)getFreeSlot(new_buckets_pm_address);
@@ -404,6 +421,8 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 	// 旧桶局部深部自增
 	old_bucket->local_depth ++;
 	
+	printf("old_bucket->local_depth increase to %ld\n", old_bucket->local_depth);
+
 	// 新桶初始化
 	memset(new_bucket, 0, sizeof(new_bucket));
 	new_bucket->local_depth = old_bucket->local_depth;
@@ -466,26 +485,33 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
 	// 可以是index小的桶先空,也可以是index大的桶先空,所以需要判断
 	pm_bucket* empty_bucket = catalog.buckets_virtual_address[bucket_id];
 	pm_address empty_pm_address = catalog.buckets_pm_address[bucket_id];
+	empty_bucket->local_depth --;
 	uint64_t empty_local_depth = empty_bucket->local_depth;
 
-	bool is_big = bucket_id & (1 << empty_local_depth);
-	uint64_t brother_id = (is_big ? bucket - (1 << empty_local_depth) : bucket_id + (1 << empty_local_depth));
+	bool is_big = (bucket_id >> empty_local_depth) & 1;
+	uint64_t brother_id = (is_big ? bucket_id - (1 << (empty_local_depth)) : bucket_id + (1 << empty_local_depth));
 	pm_bucket* brother_bucket = catalog.buckets_virtual_address[brother_id];
 	pm_address brother_pm_address = catalog.buckets_pm_address[brother_id];
+	brother_bucket->local_depth --;
+
+
+	printf("empty_bucket_id = %ld\n", bucket_id);
+	printf("brother_id = %ld\n", brother_id);
 
 	// 如果是index大的桶空了,那么只需要设置目录指针,然后回收空间
 	// 如果是index小的桶空了,需要把大的桶的内容复制到小桶中,然后回收大桶的空间
+
+	printf("before mergeBucket, local_depth is %ld\n", empty_local_depth);
 
 	// 空的桶是小桶,需要复制大桶的内容到小桶中,并设置目录指针和回收大桶空间
 	if (!is_big)
 	{
 		memcpy(empty_bucket, brother_bucket, sizeof(pm_bucket));
 
-		// 设置目录指针,并且局部深度减一
+		// 设置目录指针,并且局部深度减一(decrease above)
 		catalog.buckets_virtual_address[brother_id] = empty_bucket;
 		catalog.buckets_pm_address[brother_id] = empty_pm_address;
-		empty_bucket->local_depth --;
-
+		
 		// 将即将回收的桶清零, 可以不清
 		memset(brother_bucket, 0, sizeof(pm_bucket));
 		free_list.push(brother_bucket);
@@ -496,11 +522,13 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
 		// 设置目录指针,并且局部深度减一
 		catalog.buckets_virtual_address[bucket_id] = brother_bucket;
 		catalog.buckets_pm_address[bucket_id] = brother_pm_address;		
-		brother_bucket->local_depth --;
-
+		
 		memset(empty_bucket, 0, sizeof(pm_bucket));
 		free_list.push(empty_bucket);
 	}
+
+	printf("after mergeBucket, local_depth is %ld\n", 
+		(is_big ? brother_bucket->local_depth : empty_bucket->local_depth));
 }
 
 /**
@@ -510,10 +538,9 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
  */
 void PmEHash::extendCatalog() {
 	printf("Get in extendCatalog.\n");
-	// 全局深度自增
 	metadata->global_depth ++;
 
-	// 新目录申请两倍空间
+	// 目录申请两倍空间
 	ehash_catalog new_catalog;
 	new_catalog.buckets_pm_address = new pm_address[metadata->catalog_size * 2];
 	new_catalog.buckets_virtual_address = new pm_bucket*[metadata->catalog_size * 2];
@@ -568,7 +595,7 @@ void PmEHash::extendCatalog() {
 	// 从映射的内存刷新目录文件的内容
 	pmem_msync(pmemaddr, map_len);
 
-	// free extra space, avoid memory leak
+	// free extra space
 	delete new_catalog.buckets_pm_address;
 	delete new_catalog.buckets_virtual_address;
 }
@@ -635,6 +662,8 @@ void PmEHash::allocNewPage() {
 
 	data_page *p = (data_page *)pmemaddr;
 	memset(p, 0, sizeof(data_page));
+
+	// p->bitmap[0] = 15;
 
 	// 刷新文件值
 	pmem_msync(pmemaddr, mapped_len);
