@@ -1,6 +1,5 @@
 #include"../include/pm_ehash.h"
-
-
+// #include "pm_ehash.h"
 
 bool pm_address::operator<(const pm_address &p) const { //注意这里的两个const
     return (fileId < p.fileId) || ((fileId == p.fileId) && offset < p.offset);
@@ -32,10 +31,7 @@ PmEHash::PmEHash() {
     	// 目录不是pmem,所以直接调用pmem_msync()
 		pmem_msync(metadata, map_len);
 
-
-
 		const char *page_name = PM_EHASH_DIRECTORY "1";
-
 
 		data_page *p;
 
@@ -80,7 +76,7 @@ PmEHash::PmEHash() {
 
 		void *pmemaddr;
 
-		printf("catalog_path = %s\n", catalog_path);
+		// printf("catalog_path = %s\n", catalog_path);
 
 		// 由于每次重启后buckets对应的虚拟地址都会改变,所以只存取catalog.buckets_pm_address
 		if ((pmemaddr = pmem_map_file(catalog_path, sizeof(pm_address) * metadata->catalog_size, PMEM_FILE_CREATE,
@@ -219,7 +215,7 @@ int PmEHash::insert(kv new_kv_pair) {
  * @return: 0 = removing successfully, -1 = fail to remove(target data doesn't exist)
  */
 int PmEHash::remove(uint64_t key) {
-	printf("In remove.\n");
+	// printf("In remove.\n");
 	uint64_t value;
 
 	uint64_t index = getBucketIndex(key);
@@ -238,10 +234,10 @@ int PmEHash::remove(uint64_t key) {
     // remove(key, value) ==> bitmap(targetPlace) = 0;
     int bitmap = (bucket->bitmap[0]) + (bucket->bitmap[1] << 8); 
 
-    printf("its bitmap = %d\n", bitmap);
+    // printf("its bitmap = %d\n", bitmap);
     if (targetIndex == -1)
     {
-    	printf("do not find targetIndex.\n");
+    	// printf("do not find targetIndex.\n");
     	return -1;
     }
 
@@ -266,7 +262,7 @@ int PmEHash::remove(uint64_t key) {
  * @return: 0 = update successfully, -1 = fail to update(target data doesn't exist)
  */
 int PmEHash::update(kv kv_pair) {
-	printf("Get in update\n");
+	// printf("Get in update\n");
 	uint64_t value;
 
 	uint64_t index = getBucketIndex(kv_pair.key);
@@ -279,8 +275,8 @@ int PmEHash::update(kv kv_pair) {
 	pm_bucket* bucket = catalog.buckets_virtual_address[index];
 	int targetIndex = getKvPlace(bucket, kv_pair.key);
 
-	printf("key is in buckets_pm_address { %d, %d } in index %ld\n", vAddr2pmAddr[bucket].fileId,
-		vAddr2pmAddr[bucket].offset, index);
+	// printf("key is in buckets_pm_address { %d, %d } in index %ld\n", vAddr2pmAddr[bucket].fileId,
+	// 	vAddr2pmAddr[bucket].offset, index);
 
 
 	// 修改index所在的kv对应的value
@@ -299,19 +295,19 @@ int PmEHash::search(uint64_t key, uint64_t& return_val) {
 
 	uint64_t index = getBucketIndex(key);
 
-	printf("index = %ld\n", index);
+	// printf("index = %ld\n", index);
 
 	// 查找key对应的bucket
 	pm_bucket* bucket = catalog.buckets_virtual_address[index];
 
 	if (bucket == NULL)
 	{
-		printf("bucket == NULL, search return -1.\n");
+		// printf("bucket == NULL, search return -1.\n");
 		return -1;
 	}
 
-	printf("bucket pm_address = { %d, %d }\n", catalog.buckets_pm_address[index].fileId, 
-		catalog.buckets_pm_address[index].offset);
+	// printf("bucket pm_address = { %d, %d }\n", catalog.buckets_pm_address[index].fileId, 
+	// 	catalog.buckets_pm_address[index].offset);
 
 	// 返回bucket的search
     int targetIndex = getKvPlace(bucket, key);
@@ -324,7 +320,7 @@ int PmEHash::search(uint64_t key, uint64_t& return_val) {
     // 存在就修改return_val 并返回0
 	return_val = bucket->slot[targetIndex].value;
 
-	printf("search return 0\n");
+	// printf("search return 0\n");
 
     return 0;
 }
@@ -357,15 +353,15 @@ pm_bucket* PmEHash::getFreeBucket(uint64_t key) {
 		// give a initial value to new bucket
 		catalog.buckets_virtual_address[index]->local_depth = 4;
 
-		printf("after getFreeSlot.\n");
-		printf("buckets pm_address = {%d, %d}\n", new_address.fileId, new_address.offset);
+		// printf("after getFreeSlot.\n");
+		// printf("buckets pm_address = {%d, %d}\n", new_address.fileId, new_address.offset);
 
 		bucket = catalog.buckets_virtual_address[index];
 	}
 
 	// 获得桶,判断桶是否为满，满就调用splitBucket();
 	if (isFull(bucket))
-		splitBucket(index);
+		splitBucket(index & ((1 << bucket->local_depth) - 1));
 
 	// update bucket index
 	index = getBucketIndex(key);
@@ -402,7 +398,7 @@ int PmEHash::getFreeKvSlot(pm_bucket* bucket) {
  * @return: NULL
  */
 void PmEHash::splitBucket(uint64_t bucket_id) {
-	printf("Get in splitBucket.\n");
+	// printf("Get in splitBucket.\n");
 	// spilt bucket is index smaller bucket
 	// 获得需要分裂的桶的index,其实index对应的是输入的参数 bucket_id
 	// uint64_t index = getBucketIndex(key);
@@ -414,39 +410,39 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 	if (old_bucket->local_depth == metadata->global_depth)
 	{
 		// 目录重新映射
-		printf("before extendCatalog.\n");
+		// printf("before extendCatalog.\n");
 		extendCatalog();
-		printf("after extendCatalog.\n");
+		// printf("after extendCatalog.\n");
 	}
 
 	old_bucket = catalog.buckets_virtual_address[bucket_id];
 
-	printf("old_bucket_id = %ld\n", bucket_id);
+	// printf("old_bucket_id = %ld\n", bucket_id);
 
 	// 从free_list拿一个桶空间
 	pm_address new_buckets_pm_address;
 	pm_bucket *new_bucket = (pm_bucket *)getFreeSlot(new_buckets_pm_address);
 
-	printf("new_bucket pm_address is { %d, %d }\n", vAddr2pmAddr[new_bucket].fileId,
-		vAddr2pmAddr[new_bucket].offset);
+	// printf("new_bucket pm_address is { %d, %d }\n", vAddr2pmAddr[new_bucket].fileId,
+	// 	vAddr2pmAddr[new_bucket].offset);
 
 	// 旧桶局部深部自增
 	old_bucket->local_depth ++;
 	
-	printf("old_bucket->local_depth increase to %ld\n", old_bucket->local_depth);
+	// printf("old_bucket->local_depth increase to %ld\n", old_bucket->local_depth);
 
 	// 新桶初始化
 	memset(new_bucket, 0, sizeof(new_bucket));
 	new_bucket->local_depth = old_bucket->local_depth;
 
-	printf("new_bucket->local_depth = %ld\n", new_bucket->local_depth);
+	// printf("new_bucket->local_depth = %ld\n", new_bucket->local_depth);
 
 	// 桶指针重新分配
 	uint64_t new_index = bucket_id + (1 << new_bucket->local_depth-1);
 	catalog.buckets_virtual_address[new_index] = new_bucket;
 	catalog.buckets_pm_address[new_index] = new_buckets_pm_address;
 
-	printf("new_bucket id = %ld\n", new_index);
+	// printf("new_bucket id = %ld\n", new_index);
 
 	// 桶数据重新哈希
 	// 先把旧桶的bitmap全置零
@@ -456,38 +452,55 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 	for (int i = 0; i < BUCKET_SLOT_NUM; ++i)
 	{
 		// insert(old_bucket->slot[i]);
-		printf("old_bucket->slot[%d].key = %ld\n", i, old_bucket->slot[i].key);
-		printf("if clear = %ld\n", (old_bucket->slot[i].key >> (old_bucket->local_depth - 1)) & 1);
+		// printf("old_bucket->slot[%d].key = %ld\n", i, old_bucket->slot[i].key);
+		// printf("if clear = %ld\n", (old_bucket->slot[i].key >> (old_bucket->local_depth - 1)) & 1);
 		if ((old_bucket->slot[i].key >> (old_bucket->local_depth - 1)) & 1)
 		{
-			printf("before\n");
+			// printf("before\n");
 			clrbit(old_bitmap, i);
 			new_bucket->slot[i] = old_bucket->slot[i];
 			setbit(new_bitmap, i);
 		}
 	}
 
-	printf("old_bitmap = %d\n", old_bitmap);
-	printf("new_bitmap = %d\n", new_bitmap);
+	// printf("old_bitmap = %d\n", old_bitmap);
+	// printf("new_bitmap = %d\n", new_bitmap);
 
 	memcpy(old_bucket->bitmap, &old_bitmap, sizeof(uint8_t) * 2);
 	memcpy(new_bucket->bitmap, &new_bitmap, sizeof(uint8_t) * 2);
 
-	for (int i = 0; i < BUCKET_SLOT_NUM; ++i)
-	{
-		printf("old_bucket in index %d\n", i);
-		if ((old_bitmap >> i) & 1)
-			printf("has kv { %ld, %ld }\n",old_bucket->slot[i].key,
-			old_bucket->slot[i].value );
-	}
-	for (int i = 0; i < BUCKET_SLOT_NUM; ++i)
-	{
-		printf("new_bucket in index %d\n", i);
-		if ((new_bitmap >> i) & 1)
-			printf("has kv { %ld, %ld }\n",new_bucket->slot[i].key,
-			new_bucket->slot[i].value );
-	}
+	// for (int i = 0; i < BUCKET_SLOT_NUM; ++i)
+	// {
+	// 	printf("old_bucket in index %d\n", i);
+	// 	if ((old_bitmap >> i) & 1)
+	// 		printf("has kv { %ld, %ld }\n",old_bucket->slot[i].key,
+	// 		old_bucket->slot[i].value );
+	// }
+	// for (int i = 0; i < BUCKET_SLOT_NUM; ++i)
+	// {
+	// 	printf("new_bucket in index %d\n", i);
+	// 	if ((new_bitmap >> i) & 1)
+	// 		printf("has kv { %ld, %ld }\n",new_bucket->slot[i].key,
+	// 		new_bucket->slot[i].value );
+	// }
 }
+
+void PmEHash::freeEmptyBucket(pm_bucket* bucket) {
+	pm_address pm = vAddr2pmAddr[bucket];
+	uint64_t page_index = pm.fileId;
+	pm_address page_address = {pm.fileId, 0};
+	data_page *page_pointer = (data_page *)pmAddr2vAddr[page_address];
+
+	uint64_t index = pm.offset / BUCKET_SIZE;
+	int bitmap = page_pointer->bitmap[0] + (page_pointer->bitmap[1] << 8);
+
+	clrbit(bitmap, index);
+
+	memcpy(page_pointer->bitmap, &bitmap, sizeof(uint8_t) * 2);
+
+	free_list.push(bucket);
+}
+
 
 /**
  * @description: 桶空后，回收桶的空间，并设置相应目录项指针
@@ -509,13 +522,13 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
 	brother_bucket->local_depth --;
 
 
-	printf("empty_bucket_id = %ld\n", bucket_id);
-	printf("brother_id = %ld\n", brother_id);
+	// printf("empty_bucket_id = %ld\n", bucket_id);
+	// printf("brother_id = %ld\n", brother_id);
 
 	// 如果是index大的桶空了,那么只需要设置目录指针,然后回收空间
 	// 如果是index小的桶空了,需要把大的桶的内容复制到小桶中,然后回收大桶的空间
 
-	printf("before mergeBucket, local_depth is %ld\n", empty_local_depth);
+	// printf("before mergeBucket, local_depth is %ld\n", empty_local_depth);
 
 	// 空的桶是小桶,需要复制大桶的内容到小桶中,并设置目录指针和回收大桶空间
 	if (!is_big)
@@ -527,8 +540,9 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
 		catalog.buckets_pm_address[brother_id] = empty_pm_address;
 		
 		// 将即将回收的桶清零, 可以不清
-		memset(brother_bucket, 0, sizeof(pm_bucket));
-		free_list.push(brother_bucket);
+		freeEmptyBucket(brother_bucket);
+		// memset(brother_bucket, 0, sizeof(pm_bucket));
+		// free_list.push(brother_bucket);
 	}
 	// 空的桶是大桶,不需要复制内容,但需要设置目录指针和回收大桶空间
 	else
@@ -537,12 +551,13 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
 		catalog.buckets_virtual_address[bucket_id] = brother_bucket;
 		catalog.buckets_pm_address[bucket_id] = brother_pm_address;		
 		
-		memset(empty_bucket, 0, sizeof(pm_bucket));
-		free_list.push(empty_bucket);
+		freeEmptyBucket(empty_bucket);
+		// memset(empty_bucket, 0, sizeof(pm_bucket));
+		// free_list.push(empty_bucket);
 	}
 
-	printf("after mergeBucket, local_depth is %ld\n", 
-		(is_big ? brother_bucket->local_depth : empty_bucket->local_depth));
+	// printf("after mergeBucket, local_depth is %ld\n", 
+	// 	(is_big ? brother_bucket->local_depth : empty_bucket->local_depth));
 }
 
 /**
@@ -551,7 +566,7 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
  * @return: NULL
  */
 void PmEHash::extendCatalog() {
-	printf("Get in extendCatalog.\n");
+	// printf("Get in extendCatalog.\n");
 	metadata->global_depth ++;
 
 	// 目录申请两倍空间
@@ -566,21 +581,21 @@ void PmEHash::extendCatalog() {
 	memcpy(new_catalog.buckets_pm_address, catalog.buckets_pm_address, sizeof(pm_address) * metadata->catalog_size);
 	memcpy(new_catalog.buckets_virtual_address, catalog.buckets_virtual_address, sizeof(pm_bucket *) * metadata->catalog_size);
 
-	for (int i = 0; i < metadata->catalog_size; ++i)
-	{
-		printf("buckets_virtual_address = %p\n", new_catalog.buckets_virtual_address[i]);
-		printf("buckets_pm_address[%d] = { %d, %d }\n", i, new_catalog.buckets_pm_address[i].fileId,
-			new_catalog.buckets_pm_address[i].offset);
-	}
+	// for (int i = 0; i < metadata->catalog_size; ++i)
+	// {
+	// 	printf("buckets_virtual_address = %p\n", new_catalog.buckets_virtual_address[i]);
+	// 	printf("buckets_pm_address[%d] = { %d, %d }\n", i, new_catalog.buckets_pm_address[i].fileId,
+	// 		new_catalog.buckets_pm_address[i].offset);
+	// }
 
 	// 新增的指针设置
 	for (int i = 0; i < metadata->catalog_size; ++i)
 	{
 		new_catalog.buckets_pm_address[i + metadata->catalog_size] = new_catalog.buckets_pm_address[i];
 		new_catalog.buckets_virtual_address[i + metadata->catalog_size] = new_catalog.buckets_virtual_address[i];
-		printf("buckets_virtual_address = %p\n", new_catalog.buckets_virtual_address[i + metadata->catalog_size]);
-		printf("buckets_pm_address[%ld] = { %d, %d }\n", i + metadata->catalog_size, new_catalog.buckets_pm_address[i + metadata->catalog_size].fileId,
-			new_catalog.buckets_pm_address[i + metadata->catalog_size].offset);	
+		// printf("buckets_virtual_address = %p\n", new_catalog.buckets_virtual_address[i + metadata->catalog_size]);
+		// printf("buckets_pm_address[%ld] = { %d, %d }\n", i + metadata->catalog_size, new_catalog.buckets_pm_address[i + metadata->catalog_size].fileId,
+		// 	new_catalog.buckets_pm_address[i + metadata->catalog_size].offset);	
 	}
 
 	// 目录size翻倍
@@ -620,11 +635,11 @@ void PmEHash::extendCatalog() {
  * @return: 新槽位的虚拟地址
  */
 void* PmEHash::getFreeSlot(pm_address& new_address) {
-	printf("Get in getFreeSlot\n");
+	// printf("Get in getFreeSlot\n");
 	// 判断free_list.empty(), free_list为空则调用allocNewPage()
 	if (free_list.empty())
 	{
-		printf("getFreeSlot call allocNewPage.\n");
+		// printf("getFreeSlot call allocNewPage.\n");
 		allocNewPage();
 	}
 	// 然后 auto bucket = free_list.front(); free_list.pop();
@@ -632,7 +647,7 @@ void* PmEHash::getFreeSlot(pm_address& new_address) {
 	// 更新桶对应的pm_address
 	auto it = vAddr2pmAddr[bucket];
 
-	printf("it = {%d, %d}\n", it.fileId, it.offset);
+	// printf("it = {%d, %d}\n", it.fileId, it.offset);
 
 	pm_address page_address = {it.fileId, 0};
 	data_page * p = (data_page *)pmAddr2vAddr[page_address];
@@ -643,11 +658,11 @@ void* PmEHash::getFreeSlot(pm_address& new_address) {
 
 	// bucket->local_depth = 4;
 
-	printf("In getFreeSlot, before setbit, bitmap = %d\n", bitmap);
+	// printf("In getFreeSlot, before setbit, bitmap = %d\n", bitmap);
 
 	setbit(bitmap, index);
 
-	printf("In getFreeSlot, after setbit, bitmap = %d\n", bitmap);
+	// printf("In getFreeSlot, after setbit, bitmap = %d\n", bitmap);
 
 	memcpy(p->bitmap, &bitmap, sizeof(uint8_t) * 2);
 
@@ -701,7 +716,7 @@ void PmEHash::allocNewPage() {
 		if (!((bitmap >> i) & 1))
 		{
 			free_list.push(&p->buckets[i]);
-			printf("p->buckets[%d] = %p\n", i, &p->buckets[i]);
+			// printf("p->buckets[%d] = %p\n", i, &p->buckets[i]);
 		}
 	}
 
@@ -718,11 +733,20 @@ void PmEHash::recover() {
 	int is_pmem;
 	// const char* meta_path = PM_EHASH_DIRECTORY META_NAME;
 	// 读取metadata文件中的数据并内存映射 读取max_file_id
-	metadata = (ehash_metadata *)pmem_map_file(meta_path, sizeof(ehash_metadata), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
+	if ((metadata = (ehash_metadata *)pmem_map_file(meta_path, sizeof(ehash_metadata),
+			 	PMEM_FILE_CREATE, 0777, &map_len, &is_pmem)) == NULL)
+	{
+		perror("recover metadata pmem_map_file");
+		exit(1);
+	}
+	// metadata = (ehash_metadata *)pmem_map_file(meta_path, sizeof(ehash_metadata), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
 
 	printf("metadata->max_file_id = %ld\n", metadata->max_file_id);
 	printf("metadata->catalog_size = %ld\n", metadata->catalog_size);
 	printf("metadata->global_depth = %ld\n", metadata->global_depth);
+
+	printf("meta_path = %s\n", meta_path);
+	printf("catalog_path = %s\n", catalog_path);
 
     // 读取catalog文件中的数据并内存映射 
 	pm_address *catalog_temp = (pm_address *)pmem_map_file(catalog_path, sizeof(pm_address) * metadata->catalog_size, 
@@ -771,8 +795,8 @@ void PmEHash::mapAllPage() {
 
 	while (++ page_index < metadata->max_file_id)
 	{
-		const char *page_name = to_string(page_index).c_str();
-
+		// const char *page_name = to_string(page_index).c_str();
+		const char *page_name =  (((string)PM_EHASH_DIRECTORY) + to_string(page_index)).c_str();
 		// 申请新空间，开辟新文件"$max_file_id"
 		if ((pmemaddr[page_index-1] = pmem_map_file(page_name, sizeof(data_page), PMEM_FILE_CREATE,
 					0666, &mapped_len, &is_pmem)) == NULL) {
@@ -790,7 +814,7 @@ void PmEHash::mapAllPage() {
 
 		int bitmap = (p->bitmap[0]) + (p->bitmap[1] << 8);
 
-		printf("bitmap of page %s = %d\n", page_name, bitmap);
+		// printf("bitmap of page %s = %d\n", page_name, bitmap);
 
 		// 计算文件"$max_file_id"内的slot个数和地址，加入free_list
 		for (int i = 0; i < DATA_PAGE_SLOT_NUM; ++i)
@@ -823,7 +847,10 @@ void PmEHash::mapAllPage() {
 void PmEHash::selfDestory() {
 	// 持久化所有映射的数据
 	// metadata
+	// printf("In selfDestory.\n");
 	pmem_msync(metadata, sizeof(ehash_metadata));
+
+	// printf("flush metadata\n");
 
 	// catalog
 	int is_pmem;
@@ -837,6 +864,8 @@ void PmEHash::selfDestory() {
 	// flush catalog
 	pmem_msync(catalog_temp, sizeof(pm_address) * metadata->catalog_size);
 
+	// printf("flush catalog.\n");
+
 	// all page
 	uint32_t index = 0;
 	pm_address tmp = {index, 0};
@@ -847,6 +876,8 @@ void PmEHash::selfDestory() {
 
 		// unmap page $index
 		pmem_unmap(pmAddr2vAddr[tmp], sizeof(data_page));
+
+		// printf("flush page %d\n", index);
 	}
 
 	// 解除所有内存映射
@@ -856,6 +887,8 @@ void PmEHash::selfDestory() {
 	// unmap metadata
 	pmem_unmap(metadata, sizeof(ehash_metadata)); 
 
+	// printf("unmap\n");
+
 	// clear all inside data, but unn
 	vAddr2pmAddr.clear();
 	pmAddr2vAddr.clear();
@@ -864,7 +897,53 @@ void PmEHash::selfDestory() {
 	delete catalog.buckets_pm_address;
 	delete catalog.buckets_virtual_address;
 
+	const char* s = "rm " PM_EHASH_DIRECTORY "*";
+
+	printf("s = %s\n", s);
+
+	system(s);
+
 	// 刷新磁盘内容
 	// 清空所有内存数据
 	// 解除所有内存映射
+}
+
+void PmEHash::printCatalog()
+{
+	for (int i = 0; i < metadata->catalog_size; ++i)
+	{
+		printf("index = %d, buckets_pm_address is { %d, %d }\n", i, catalog.buckets_pm_address[i].fileId,
+		 catalog.buckets_pm_address[i].offset);
+		pm_bucket * bucket = catalog.buckets_virtual_address[i];
+		if (bucket == NULL)
+			continue; 
+		if (isEmpty(bucket))
+		{
+			printf("the bucket has no key\n");
+		}
+		else
+		{
+			printf("the bucket has key below.\n");
+			int bitmap = bucket->bitmap[0] + (bucket->bitmap[1] << 8);
+			for (int i = 0; i < BUCKET_SLOT_NUM; ++i)
+			{
+				if ((bitmap >> i) & 1)
+				{
+					printf("key = %ld, value = %ld\n", bucket->slot[i].key, bucket->slot[i].value);
+				}
+			}
+		}
+	}
+}
+
+void PmEHash::printMap()
+{
+	printf("metadata->max_file_id = %ld\n", metadata->max_file_id);
+	printf("metadata->catalog_size = %ld\n", metadata->catalog_size);
+	printf("metadata->global_depth = %ld\n", metadata->global_depth);
+	for (auto it : vAddr2pmAddr)
+	{
+		printf("bucket in address %p is {%d, %d}\n", it.first,
+			it.second.fileId, it.second.offset);
+	}
 }
