@@ -1,97 +1,137 @@
 #include <iostream>
 #include <string>
-#include <io.h>
+// #include <io.h>
+// #include<sys/types.h>
+#include<dirent.h>
 #include <vector>
 #include <fstream>
 #include <sstream>
 #include <ctime>
 
-#include "gtest/gtest.h"
-#include "../include/pm_ehash.h"
+// #include "gtest/gtest.h"
+#include "pm_ehash.cpp"
+
+ // #pragma comment(linker, "/STACK:102400000,102400000")
 
 using namespace std;
 
-//拿到workloads文件夹下所有子文件的路径信息（可以不用管）
-void getFiles(const std::string &path, std::vector<std::string> &files)
-{
-    //文件句柄
-    long long hFile = 0;
-    //文件信息，_finddata_t需要io.h头文件
-    struct _finddata_t fileinfo;
-    std::string p;
-    int i = 0;
-    if ((hFile = _findfirst(p.assign(path).append("\\*").c_str(), &fileinfo)) != -1)
-    {
-        do
-        {
-            files.push_back(p.assign(path).append("\\").append(fileinfo.name));
-        } while (_findnext(hFile, &fileinfo) == 0);
-        _findclose(hFile);
-    }
-}
+// int find_dir_file(const char *dir_name,vector<string>& v)
+// {
+//     DIR *dirp;
+//     struct dirent *dp;
+//     dirp = opendir(dir_name);
+//     while ((dp = readdir(dirp)) != NULL) {
+//         v.push_back(std::string(dp->d_name ));
+//     }
+//     (void) closedir(dirp);
+//     return 0;
+// }
+
+const string workload = "../workloads/";
+const string load = workload + "10w-rw-50-50-load.txt";
+const string run  = workload + "10w-rw-50-50-run.txt";
+
+const int READ_WRITE_NUM = 350000;
 
 int main()
 {
-    string path = "../workloads";
-    vector<string> loadsPath;
-    getFiles(path, loadsPath); // loadsPaths中呈装workloads中所有文本文件的相对地址（可以直接使用）
-    vector<string> file;       // 文本文件内容的容器
+    uint64_t inserted = 0, search = 0, t = 0;
+    uint64_t *key = new uint64_t[2200000];
+    bool *ifInsert = new bool[2200000];
+    FILE *ycsb_load, *ycsb_run;
+    char *buf = NULL;
+    size_t len = 0;
+    struct timespec start, finish;
+    double single_time;
 
-    for (int i = 0; i < loadsPath.size(); ++i)      // 遍历workloads文件夹下所有txt文件
-    {
-        file.clear();
+    PmEHash *ehash = new PmEHash;
 
-        ifstream inFile;
-        inFile.open(loadsPath[i]);
-        string tmp;
-        while (getline(inFile, tmp))
-        {
-            file.push_back(tmp);
-        } // 将读取的命令按行存储在file中
+    printf("===== load =====\n");
 
-        PmEHash *ehash = new PmEHash;           // 创建数据表，开始测试！
-
-        int insertCount = 0;
-        int readCount = 0;                      // 记录操作的次数
-
-        clock_t startTime, endTime;             // 用来计算操作使用的时间
-        clock_t totalTime;                      // 记录执行所有操作的总时间
-
-        for (int j = 0; j < file.size(); ++j)
-        { // 遍历命令，进行数据库操作，记录参数
-            istringstream inS(file[j]);
-            string order;
-            int number;
-            inS >> order >> number;
-
-            if (order == "INSERT")
-            {
-                startTime=clock();                          // 计时开始
-
-                insertCount++;
-                kv temp;
-                temp.key = temp.value = number;
-                ehash->insert(temp);
-
-                endTime=clock();                            // 计时结束
-                totalTime+=(double)(endTime-startTime);     // 记录用时 
-            }
-            else if (order == "READ")
-            {
-                startTime=clock();                          // 计时开始
-
-                readCount++;
-                ehash->search(number);
-                
-                endTime=clock();                            // 计时结束
-                totalTime+=(double)(endTime-startTime);     // 记录用时 
-            }
-        }
-
-        // 输出性能测试内容：
-        cout<<"insert read command  time "<<endl;
-        cout<<insertCount<<" "<<readCount<<" "<<file.size()<<" "<<totalTime<<endl;
-
-        ehash->selfDestory(); // 回收数据表
+    ycsb_load = fopen(load.c_str(), "r");
+    if (ycsb_load == NULL) {
+        printf("read load file failed\n");
+        exit(1);
+    } else {
+        printf("read load file success\n");
     }
+    char op[7];
+    uint64_t k;
+    while (fscanf(ycsb_load, "%s %ld\n", op, &k) != EOF) {
+        key[t] = k;
+        if (strcmp("INSERT", op) == 0) ifInsert[t] = true;
+        else ifInsert[t] = false;
+        t++;
+    }
+
+    fclose(ycsb_load);
+
+    kv kv_pair;
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    // load the workload in the fptree
+    for (int i = 0; i < t; ++ i) {
+        // printf("fptree insert %ld\n", key[i]);
+        kv_pair.key = kv_pair.value = key[i];
+        printf("before insert\n");
+        printf("kv_pair = {%ld, %ld}\n", key[i], key[i]);
+        ehash->insert(kv_pair);
+        printf("inserted = %d, loading\n", inserted);
+        inserted++;
+    }    
+
+    clock_gettime(CLOCK_MONOTONIC, &finish);
+    single_time = (finish.tv_sec - start.tv_sec) * 1000000000.0 + (finish.tv_nsec - start.tv_nsec);
+    printf("Load phase finishes: %ld items are inserted \n", inserted);
+    printf("Load phase used time: %fs\n", single_time / 1000000000.0);
+    printf("Load phase single insert time: %fns\n", single_time / inserted);
+
+
+    printf("Run phase begins\n");
+
+    int operation_num = 0;
+    inserted = 0;
+    // read the ycsb_run
+    t = 0;
+    ycsb_run = fopen(run.c_str(), "r");
+    if (ycsb_run == NULL) {
+        printf("read run file failed\n");
+        exit(1);
+    } else {
+        printf("read run file success\n");
+    }
+    while (fscanf(ycsb_run, "%s %ld\n", op, &k) != EOF) {
+        key[t] = k;
+        if (strcmp("INSERT", op) == 0) ifInsert[t] = true;
+        else ifInsert[t] = false;
+        t++;
+    }
+    fclose(ycsb_run);
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    // operate the fptree
+    uint64_t value;
+    // uint64_t max_value = MAX_VALUE;
+    for (int i = 0; i < t; ++ i) {
+        operation_num++;
+        kv_pair.key = kv_pair.value = key[i];
+        if (ifInsert[i]) {
+            ehash->insert(kv_pair);
+            inserted++;
+        } else {
+            ehash->search(kv_pair.key, kv_pair.value);
+            // if (value == max_value || value != key[i]) {
+            //     cout << key[i] << " read failed" << endl;
+            // }
+        }
+    }
+
+    clock_gettime(CLOCK_MONOTONIC, &finish);
+    single_time = (finish.tv_sec - start.tv_sec) + (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
+    printf("Run phase finishes: %ld/%ld items are inserted/searched\n", inserted, operation_num - inserted);
+    printf("Run phase throughput: %f operations per second \n", READ_WRITE_NUM/single_time);
+
+    ehash->selfDestory();
 }
