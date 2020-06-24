@@ -28,8 +28,13 @@ using namespace std;
 // }
 
 const string workload = "../workloads/";
+<<<<<<< HEAD
 const string load = workload + "220w-rw-50-50-load.txt";
 const string run  = workload + "220w-rw-50-50-run.txt";
+=======
+const string load = workload + "10w-rw-50-50-load.txt";
+const string run  = workload + "10w-rw-50-50-run.txt";
+>>>>>>> 167ca3bd9aa463fc96111d31dd23d92af1227d3f
 
 const int READ_WRITE_NUM = 350000;
 
@@ -55,7 +60,11 @@ int main()
     } else {
         printf("read load file success\n");
     }
+<<<<<<< HEAD
     char op[7], num[20];
+=======
+    char op[7];
+>>>>>>> 167ca3bd9aa463fc96111d31dd23d92af1227d3f
     uint64_t k;
     while (fscanf(ycsb_load, "%s %ld\n", op, &k) != EOF) {
         key[t] = k;
@@ -73,11 +82,19 @@ int main()
     // load the workload in the fptree
     for (int i = 0; i < t; ++ i) {
         // printf("fptree insert %ld\n", key[i]);
+<<<<<<< HEAD
         kv_pair.value = kv_pair.key = stoi(to_string(key[i]).substr(0, 8));
         // printf("before insert\n");
         // printf("kv_pair = {%ld, %ld}\n", kv_pair.key, kv_pair.value);
         ehash->insert(kv_pair);
         // printf("inserted = %ld, loading\n", inserted);
+=======
+        kv_pair.key = kv_pair.value = key[i];
+        printf("before insert\n");
+        printf("kv_pair = {%ld, %ld}\n", key[i], key[i]);
+        ehash->insert(kv_pair);
+        printf("inserted = %d, loading\n", inserted);
+>>>>>>> 167ca3bd9aa463fc96111d31dd23d92af1227d3f
         inserted++;
     }    
 
@@ -116,12 +133,22 @@ int main()
     // uint64_t max_value = MAX_VALUE;
     for (int i = 0; i < t; ++ i) {
         operation_num++;
+<<<<<<< HEAD
         kv_pair.value = kv_pair.key = stoi(to_string(key[i]).substr(0, 8));
+=======
+        kv_pair.key = kv_pair.value = key[i];
+>>>>>>> 167ca3bd9aa463fc96111d31dd23d92af1227d3f
         if (ifInsert[i]) {
             ehash->insert(kv_pair);
             inserted++;
         } else {
             ehash->search(kv_pair.key, kv_pair.value);
+<<<<<<< HEAD
+=======
+            // if (value == max_value || value != key[i]) {
+            //     cout << key[i] << " read failed" << endl;
+            // }
+>>>>>>> 167ca3bd9aa463fc96111d31dd23d92af1227d3f
         }
     }
 
@@ -131,4 +158,8 @@ int main()
     printf("Run phase throughput: %f operations per second \n", READ_WRITE_NUM/single_time);
 
     ehash->selfDestory();
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 167ca3bd9aa463fc96111d31dd23d92af1227d3f
