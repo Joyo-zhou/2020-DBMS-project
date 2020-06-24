@@ -68,6 +68,7 @@ PmEHash::PmEHash() {
 		{
 			catalog.buckets_virtual_address[i] = (pm_bucket *)getFreeSlot(catalog.buckets_pm_address[i]);
 			catalog.buckets_virtual_address[i]->local_depth = 4;
+			// catalog.buckets_virtual_address[i]->id = i;
 		}	
 
 		// invalid pm_adress = {0, 0};
@@ -361,7 +362,7 @@ pm_bucket* PmEHash::getFreeBucket(uint64_t key) {
 
 	// 获得桶,判断桶是否为满，满就调用splitBucket();
 	if (isFull(bucket))
-		splitBucket(index & ((1 << bucket->local_depth) - 1));
+		splitBucket(index);
 
 	// update bucket index
 	index = getBucketIndex(key);
@@ -392,12 +393,20 @@ int PmEHash::getFreeKvSlot(pm_bucket* bucket) {
 	// 返回位置指针
 }
 
+uint64_t PmEHash::minTrueBucket(uint64_t bucket_id) {
+    for (uint64_t i = 4; i <= catalog.buckets_virtual_address[bucket_id]->local_depth; ++i) {
+        if (catalog.buckets_virtual_address[bucket_id % (1 << i)] == catalog.buckets_virtual_address[bucket_id]) return bucket_id % (1 << i);
+    }
+    return 0;
+}
+
 /**
  * @description: 桶满后进行分裂操作，可能触发目录的倍增
  * @param uint64_t: 目标桶在目录中的序号
  * @return: NULL
  */
 void PmEHash::splitBucket(uint64_t bucket_id) {
+	bucket_id = minTrueBucket(bucket_id);
 	// printf("Get in splitBucket.\n");
 	// spilt bucket is index smaller bucket
 	// 获得需要分裂的桶的index,其实index对应的是输入的参数 bucket_id
@@ -410,21 +419,14 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 	if (old_bucket->local_depth == metadata->global_depth)
 	{
 		// 目录重新映射
-		// printf("before extendCatalog.\n");
 		extendCatalog();
-		// printf("after extendCatalog.\n");
 	}
 
 	old_bucket = catalog.buckets_virtual_address[bucket_id];
 
-	// printf("old_bucket_id = %ld\n", bucket_id);
-
 	// 从free_list拿一个桶空间
 	pm_address new_buckets_pm_address;
 	pm_bucket *new_bucket = (pm_bucket *)getFreeSlot(new_buckets_pm_address);
-
-	// printf("new_bucket pm_address is { %d, %d }\n", vAddr2pmAddr[new_bucket].fileId,
-	// 	vAddr2pmAddr[new_bucket].offset);
 
 	// 旧桶局部深部自增
 	old_bucket->local_depth ++;
@@ -438,11 +440,20 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 	// printf("new_bucket->local_depth = %ld\n", new_bucket->local_depth);
 
 	// 桶指针重新分配
+	
 	uint64_t new_index = bucket_id + (1 << new_bucket->local_depth-1);
 	catalog.buckets_virtual_address[new_index] = new_bucket;
 	catalog.buckets_pm_address[new_index] = new_buckets_pm_address;
 
-	// printf("new_bucket id = %ld\n", new_index);
+    uint64_t step = (1 << new_bucket->local_depth);
+    for (size_t i = bucket_id + step; i < metadata->catalog_size; i += step) {
+    	catalog.buckets_virtual_address[i] = old_bucket;
+    }
+    for (size_t i = new_index + step; i < metadata->catalog_size; i += step) {
+    	catalog.buckets_virtual_address[i] = new_bucket;
+    }
+
+	// printf("spilt old_bucket %ld --> new_bucket %ld\n", old_bucket->id, new_bucket->id);
 
 	// 桶数据重新哈希
 	// 先把旧桶的bitmap全置零
@@ -463,26 +474,9 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 		}
 	}
 
-	// printf("old_bitmap = %d\n", old_bitmap);
-	// printf("new_bitmap = %d\n", new_bitmap);
-
 	memcpy(old_bucket->bitmap, &old_bitmap, sizeof(uint8_t) * 2);
 	memcpy(new_bucket->bitmap, &new_bitmap, sizeof(uint8_t) * 2);
 
-	// for (int i = 0; i < BUCKET_SLOT_NUM; ++i)
-	// {
-	// 	printf("old_bucket in index %d\n", i);
-	// 	if ((old_bitmap >> i) & 1)
-	// 		printf("has kv { %ld, %ld }\n",old_bucket->slot[i].key,
-	// 		old_bucket->slot[i].value );
-	// }
-	// for (int i = 0; i < BUCKET_SLOT_NUM; ++i)
-	// {
-	// 	printf("new_bucket in index %d\n", i);
-	// 	if ((new_bitmap >> i) & 1)
-	// 		printf("has kv { %ld, %ld }\n",new_bucket->slot[i].key,
-	// 		new_bucket->slot[i].value );
-	// }
 }
 
 void PmEHash::freeEmptyBucket(pm_bucket* bucket) {
@@ -682,10 +676,10 @@ void PmEHash::allocNewPage() {
 	int is_pmem;
 
 	uint32_t it = metadata->max_file_id;
-	const char *page_name =  (((string)PM_EHASH_DIRECTORY) + to_string(it)).c_str();
+	const string page_name =  (((string)PM_EHASH_DIRECTORY) + to_string(it));
 
 	// 申请新空间，开辟新文件"$max_file_id"
-	if ((pmemaddr = pmem_map_file(page_name, sizeof(data_page), PMEM_FILE_CREATE,
+	if ((pmemaddr = pmem_map_file(page_name.c_str(), sizeof(data_page), PMEM_FILE_CREATE,
 				0666, &mapped_len, &is_pmem)) == NULL) {
 		perror("pmem_map_file");
 		exit(1);

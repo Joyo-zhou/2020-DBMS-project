@@ -23,7 +23,7 @@
 #define DEFAULT_CATALOG_SIZE      16
 #define META_NAME                                "pm_ehash_metadata"
 #define CATALOG_NAME                        "pm_ehash_catalog"
-#define PM_EHASH_DIRECTORY        "/mnt/pmemdir/"        // add your own directory path to store the pm_ehash
+#define PM_EHASH_DIRECTORY        "/home/feng/Downloads/2020-DBMS-project-master/data/"        // add your own directory path to store the pm_ehash
 
 #define meta_path PM_EHASH_DIRECTORY META_NAME
 #define catalog_path PM_EHASH_DIRECTORY CATALOG_NAME
@@ -126,6 +126,7 @@ private:
 
     void recover();
     void mapAllPage();
+    uint64_t minTrueBucket(uint64_t bucket_id);
 
 public:
     PmEHash();
