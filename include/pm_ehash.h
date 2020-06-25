@@ -18,19 +18,20 @@
 #endif
 #include <string>
 #include <string.h>
+#include <mutex>
+
 
 #define BUCKET_SLOT_NUM               15
 #define DEFAULT_CATALOG_SIZE      16
 #define META_NAME                                "pm_ehash_metadata"
 #define CATALOG_NAME                        "pm_ehash_catalog"
-#define PM_EHASH_DIRECTORY        "/home/feng/Downloads/2020-DBMS-project-master/data/"        // add your own directory path to store the pm_ehash
+#define PM_EHASH_DIRECTORY        "/mnt/pmemdir/"        // add your own directory path to store the pm_ehash
+// #define PM_EHASH_DIRECTORY        "/home/feng/Downloads/2020-DBMS-project-master/data/"        // add your own directory path to store the pm_ehash
 
 #define meta_path PM_EHASH_DIRECTORY META_NAME
 #define catalog_path PM_EHASH_DIRECTORY CATALOG_NAME
 
 #define BUCKET_SIZE 256
-
-// extern const char *meta_path, *catalog_path;
 
 #define setbit(x,y) x|=(1<<y) //将X的第Y位置1
 #define clrbit(x,y) x&=~(1<<y) //将X的第Y位清0
@@ -104,9 +105,9 @@ private:
     map<pm_bucket*, pm_address> vAddr2pmAddr;       // map virtual address to pm_address, used to find specific pm_address
     map<pm_address, pm_bucket*> pmAddr2vAddr;       // map pm_address to virtual address, used to find specific virtual address
     
+
     bool isEmpty(pm_bucket *p);
     bool isFull(pm_bucket *p);
-
 
     uint64_t hashFunc(uint64_t key);
     uint64_t getBucketIndex(uint64_t key);
@@ -126,7 +127,8 @@ private:
 
     void recover();
     void mapAllPage();
-    uint64_t minTrueBucket(uint64_t bucket_id);
+    uint64_t getActualBucket(uint64_t bucket_id);
+    void WirteMemory();
 
 public:
     PmEHash();
