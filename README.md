@@ -12,6 +12,7 @@ This is the final project of 2020 DBMS course in SYSU for groups 7
 [x] github团队编程
 [x] 定长页表设计和使用
 [x] 简单的页表文件空间管理
+[x] 多线程的基本实现
 
 ## 项目讲解
 项目是一个可扩展哈希，存储定长键值对形式的数据，提供给外界的接口只有对键值对的增删改查操作，底层存储与模拟NVM硬件进行交互，将数据持久存储在文件中，重启时能够重新恢复可扩展哈希的存储状态。
@@ -34,6 +35,14 @@ This is the final project of 2020 DBMS course in SYSU for groups 7
 
 ## 架构示意图
 ![架构图](./asset/PmEHash.bmp)
+
+
+## 注意事项
+
+- 确保已经安装了pmdk
+- **数据存储位置默认为/mnt/pmemdir**，如果需要修改请进入2020-DBMS-project/include/pm_ehash.h文件中修改PM_EHASH_DIRECTORY
+- 确保数据存储的位置是持久性内存
+- Bucket大小是256字节，键值对每对占16字节，4个键值对是一个cache-line的大小，针对cache-line来设置bucket的默认个数对性能的提升有所帮助，同时在使用flush相关函数的时候，根据cache-line的大小来调整flush的大小也会对性能产生影响
 
 ## 运行前提
 **在运行前，请先保证目录/mnt/pmemdir/存在且是持久化内存，否则可能会产生读取不到文件的情况**
