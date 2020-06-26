@@ -1,10 +1,11 @@
 #include <iostream>
 #include <string>
-#include<dirent.h>
+#include <dirent.h>
 #include <vector>
 #include <fstream>
 #include <sstream>
 #include <ctime>
+#include"omp.h"  
 #include "pm_ehash.cpp"
 using namespace std;
 
@@ -73,7 +74,9 @@ int main()
         clock_gettime(CLOCK_MONOTONIC, &start);
 
         // load the workload in the PmEHash
+        // #pragma omp parallel for num_threads(2)  
         for (size_t i = 0; i < t; ++ i) {
+            // printf("inserted %ld\n", i);
             kv_pair.value = kv_pair.key = stoi(to_string(key[i]).substr(0, 8));
             ehash->insert(kv_pair);
             inserted++;
@@ -114,9 +117,11 @@ int main()
         clock_gettime(CLOCK_MONOTONIC, &start);
 
         // operate the PmEHash
+        // #pragma omp parallel for num_threads(2)  
         for (size_t i = 0; i < t; ++ i) {
             operation_num++;
             kv_pair.value = kv_pair.key = stoi(to_string(key[i]).substr(0, 8));
+            // printf("opt = %ld\n", i);
             if (ifInsert[i] == 1) {
                 ehash->insert(kv_pair);
                 inserted++;
