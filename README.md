@@ -5,14 +5,14 @@ This is the final project of 2020 DBMS course in SYSU for groups 7
 本次课程设计要求实现一个课本上所讲解的可扩展哈希的持久化实现，底层持久化是在模拟的NVM硬件上面进行。
 
 ## 涉及知识点
-[x] 可扩展哈希
-[x] 简单的NVM编程
-[x] gtest单元测试
-[x] 编写makefile编译
-[x] github团队编程
-[x] 定长页表设计和使用
-[x] 简单的页表文件空间管理
-[x] 多线程的基本实现
+- [x] 可扩展哈希  
+- [x] 简单的NVM编程   
+- [x] gtest单元测试   
+- [x] 编写makefile编译    
+- [x] github团队编程  
+- [x] 定长页表设计和使用  
+- [x] 简单的页表文件空间管理  
+- [x] 多线程的基本实现    
 
 ## 项目讲解
 项目是一个可扩展哈希，存储定长键值对形式的数据，提供给外界的接口只有对键值对的增删改查操作，底层存储与模拟NVM硬件进行交互，将数据持久存储在文件中，重启时能够重新恢复可扩展哈希的存储状态。
@@ -45,8 +45,8 @@ This is the final project of 2020 DBMS course in SYSU for groups 7
 - Bucket大小是256字节，键值对每对占16字节，4个键值对是一个cache-line的大小，针对cache-line来设置bucket的默认个数对性能的提升有所帮助，同时在使用flush相关函数的时候，根据cache-line的大小来调整flush的大小也会对性能产生影响
 
 ## 运行前提
-**在运行前，请先保证目录/mnt/pmemdir/存在且是持久化内存，否则可能会产生读取不到文件的情况**
-- 对于gtest的TEST要求来说，存放数据的目录(默认为./data)下不能有旧哈希数据文件，所以在运行gtest前请先在test文件夹下运行make clean
+**在运行前，请先保证默认目录/mnt/pmemdir/存在且是持久化内存，否则可能会产生读取不到文件的情况**
+- 对于gtest的TEST要求来说，存放数据的目录(默认为/mnt/pmemdir)下不能有旧哈希数据文件，所以在运行gtest前请先在test文件夹下运行make clean
 - 运行gtest：在test文件夹下执行以下命令：
 ```
 make clean 
