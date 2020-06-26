@@ -92,8 +92,8 @@ PmEHash::~PmEHash() {
 	WirteMemory();
 }
 
-uint64_t PmEHash::getBucketIndex(uint64_t key) {
-	return (key % ((1 << metadata->global_depth)));
+inline uint64_t PmEHash::getBucketIndex(uint64_t key) {
+	return (key & ((1 << metadata->global_depth) - 1));
 }
 
 /**
@@ -101,7 +101,7 @@ uint64_t PmEHash::getBucketIndex(uint64_t key) {
  * @param : 待寻找的桶 p, 和key
  * @return: $index if found, -1 if not found
  */
-int PmEHash::getKvPlace(pm_bucket *p, uint64_t key) {
+inline int PmEHash::getKvPlace(pm_bucket *p, uint64_t key) {
 	int bitmap = (p->bitmap[0]) + (p->bitmap[1] << 8);
 	for (int i = 0; i < BUCKET_SLOT_NUM; ++i) {
 		if (((bitmap >> i) & 1) && (p->slot[i].key == key))
@@ -156,18 +156,10 @@ int PmEHash::insert(kv new_kv_pair) {
     int targetIndex = getFreeKvSlot(bucket); // check
 
     // 更改slot的kv
-
     bucket->slot[targetIndex] = new_kv_pair;
 
     // 将bitmap置1
-    // bitmap(freePlace) = 1;
-    int bitmap = (bucket->bitmap[0]) + (bucket->bitmap[1] << 8); 
-    
-    // 将bitmap的targetIndex位置1
-    setbit(bitmap, targetIndex);
-
-    // 将bitmap的新值memcpy回去
-    memcpy(bucket->bitmap, &bitmap, sizeof(uint8_t) * 2);
+    setbit(bucket->bitmap[targetIndex >> 3], targetIndex & 7);
 
     // 说不定要调用pmem_msync()
     pmem_msync(bucket, sizeof(pm_bucket));
@@ -193,17 +185,11 @@ int PmEHash::remove(uint64_t key) {
     	// do not find targetIndex.
     	return -1;
 
-    // 执行remove操作
-    int bitmap = (bucket->bitmap[0]) + (bucket->bitmap[1] << 8); 
-
     // 使用宏命令将bitmap的targetIndex位清零
-    clrbit(bitmap, targetIndex);
-
-    // 再copy到对应的bitmap所在的内存
-    memcpy(bucket->bitmap, &bitmap, sizeof(uint8_t) * 2);
+    clrbit(bucket->bitmap[targetIndex >> 3], targetIndex & 7);
 
     // 说不定要调用pmem_msync()
-    // pmem_msync(bucket, sizeof(pm_bucket));
+    pmem_msync(bucket, sizeof(pm_bucket));
 
     // 如果remove操作后桶为空,那么调用mergeBucket()
     if (isEmpty(bucket))
@@ -229,6 +215,7 @@ int PmEHash::update(kv kv_pair) {
 
 	// 存在就找到key存放的index
 	pm_bucket* bucket = catalog.buckets_virtual_address[index];
+	
 	int targetIndex = getKvPlace(bucket, kv_pair.key);
 
 	// 修改index所在的kv对应的value
@@ -331,8 +318,8 @@ int PmEHash::getFreeKvSlot(pm_bucket* bucket) {
 
 uint64_t PmEHash::getActualBucket(uint64_t bucket_id) {
     for (uint64_t i = 4; i <= catalog.buckets_virtual_address[bucket_id]->local_depth; ++i) {
-        if (catalog.buckets_virtual_address[bucket_id % (1 << i)] == catalog.buckets_virtual_address[bucket_id]) 
-        	return bucket_id % (1 << i);
+        if (catalog.buckets_virtual_address[bucket_id & ((1 << i) - 1)] == catalog.buckets_virtual_address[bucket_id]) 
+        	return bucket_id & ((1 << i) - 1);
     }
     return 0;
 }
@@ -394,8 +381,8 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 		}
 	}
 
-	memcpy(old_bucket->bitmap, &old_bitmap, sizeof(uint8_t) * 2);
-	memcpy(new_bucket->bitmap, &new_bitmap, sizeof(uint8_t) * 2);
+	memcpy(old_bucket->bitmap, &old_bitmap, sizeof(uint8_t)*2);
+	memcpy(new_bucket->bitmap, &new_bitmap, sizeof(uint8_t)*2);
 }
 
 void PmEHash::freeEmptyBucket(pm_bucket* bucket) {
